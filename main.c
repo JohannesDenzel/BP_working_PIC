@@ -51,6 +51,54 @@ _init_();
       
     uint8_t serRec = NACK; 
     
+    
+    struct flags_main_s{
+                                    
+        uint8_t flag0: 1;           
+        
+        uint8_t flag1: 1;           
+        
+        uint8_t flag2: 1;           
+        
+        uint8_t flags3_7: 5;           //free bits, bit3 - bit7
+    }flags_pt_main_s; 
+  
+    //PT element calibration
+    //flags only used in main
+    
+    //rename feld data of flags_pt_main_s for Pt elements
+    //do not move to global. Its easier to understand if the defines stay here
+    
+#define ptcT_amb_f  flags_pt_main_s.flag0   // flag is set at reset or if the measured 
+                                            // temperature of the cool side is bigger 
+                                            // than the room temperature defined in global_config.h 
+
+#define pt_n_av_f   flags_pt_main_s.flag1   // flag is set if number of temperature measurements 
+                                            // for calculating a average temperature is reached.
+                                            // calculate average, reset flag, reset number
+
+
+    
+    ptcT_amb_f = 0; //start value
+    pt_n_av_f = 0;
+    
+    
+    
+    uint16_t n_T_meas = 0;          //number of temperature measurements
+    uint8_t  pwmval_c_max = 0;      //maximum duty cycle in % for the PT element
+    uint8_t  pwmval_c_top = 0;
+    uint8_t  pwmval_c_bottom = 0;
+    
+    int16_t t_sum_0 = 0;
+    int16_t t_sum_1 = 0;
+    int8_t t_av = 127; //average temperatures
+    int8_t  t_av_0 = 127; 
+    int8_t  t_av_1 = 127;
+    uint8_t t_av_n = 0; //average counter
+// a struct could be used to group the pwmvals and average temperatures together
+// but i already did it this way so no
+
+    
 //for testing the wdt:
 //toggle LED4 and write/read the value to/from EEPR adress 1
     uint8_t led_val = EEPROM_read(1);
@@ -201,6 +249,7 @@ _init_();
         }
         
         
+        
         /**********************************************************************/
         //Temperatur Control each Time a new temperature is (or should be) measured
         /**********************************************************************/
@@ -208,8 +257,56 @@ _init_();
         
         int8_t measHeatingTemp = T3; //2 rings 
         int8_t measPtCoolTemp  = T2; //1 rings
-        int8_t measPtHotTemp   = T1; //0 rings
-                
+        int8_t measPtHotTemp   = T1; //0 rings always > 0
+        
+        /**********************************************************************/
+        // PT Calibration
+        /**********************************************************************/
+        
+        if(measPtCoolTemp >= AMB_T) ptcT_amb_f = 1; //set cooling Temperature >= ambient Temperature flag
+                                                    //reset after kalibration
+        
+        //calculate averages regardless of calibration
+        n_T_meas++; //increase measurement counter 
+        
+       //if the pic doesnt wait its calculating average -> wait != average
+        
+    
+        
+        if(n_T_meas <= PT_N_AV && pt_n_av_f == 1){
+            t_sum_0 += measPtCoolTemp;
+        }else{
+            n_T_meas = 0; //reset measurement counter
+            pt_n_av_f = 0; //reset average calc flag
+            
+            t_av = t_sum_0/PT_N_AV;  
+            
+            t_av_n++; //inrement average counter
+            
+            t_sum_0 = 0; //reset sum
+        }
+        
+        switch (t_av_n){
+            case 1: t_av_0 = t_av;
+            case 2: {
+                t_av_1 = t_av;
+                t_av_n = 0; //reset counter
+            }
+            default: t_av_n = 0;
+        }
+       
+        
+        if(n_T_meas >= PT_N_W && pt_n_av_f == 0){
+            n_T_meas = 0; //reset counter, waiting time is over
+            pt_n_av_f = 1; //set average calculation flag
+        }
+        
+        
+        //Calibration
+        if(ptcT_amb_f == 1){
+            
+        }
+         
         
         //heating
         if(-30 < T3 && T3 < 120){
@@ -229,7 +326,7 @@ _init_();
             if(measPtHotTemp >= PT_OFF_T){ //turn off Temperature
                 pwmval_c = 1;  //1% duty cycle (minimum value in protokoll)
                 
-            }else if(measPtHotTemp >= PT_OH_T){
+            }else if(measPtHotTemp - measPtCoolTemp >= PT_MAX_DT){
                 pwmval_c = PT_MIN_PWM_DC; //minimum duty cycle of Pt element so that the cool side doest get to hot but the hot side doesnt over heat
                
             }else{ //measHotTemp < overHeat
@@ -318,7 +415,7 @@ void _init_(void){
     Setup_Pump_PWM();
     Setup_Heating_PWM();
     Setup_Cooling_PWM();
-    DUTY_CYC_C = 6; //34; //85% DC
+    DUTY_CYC_C = 0; //34; //85% DC
     //Sensor
     ANSELCbits.ANSC5 = 0;
     
