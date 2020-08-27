@@ -208,7 +208,7 @@ _init_();
         
         int8_t measHeatingTemp = T3; //2 rings 
         int8_t measPtCoolTemp  = T2; //1 rings
-        int8_t measPtHotTemp   = T1; //0 rings
+        int8_t measPtHotTemp   = T1; //0 rings always > 0
                 
         
         //heating
@@ -229,7 +229,7 @@ _init_();
             if(measPtHotTemp >= PT_OFF_T){ //turn off Temperature
                 pwmval_c = 1;  //1% duty cycle (minimum value in protokoll)
                 
-            }else if(measPtHotTemp >= PT_OH_T){
+            }else if(measPtHotTemp - measPtCoolTemp >= PT_MAX_DT){
                 pwmval_c = PT_MIN_PWM_DC; //minimum duty cycle of Pt element so that the cool side doest get to hot but the hot side doesnt over heat
                
             }else{ //measHotTemp < overHeat

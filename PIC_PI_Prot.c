@@ -236,7 +236,7 @@ uint8_t SetCoolingPWM(uint8_t value_par){
         LATBbits.LB4 = 1; //turn off led3, for debugging purposes
     }else if(value_par <= 100){
         //uint8_t cyc_intern = (uint8_t) ((uint16_t) ((value_par * PR_P)/100));
-        DUTY_CYC_C = (uint8_t) (value_par/100.0f * PR_C); //map value to duty cycle 
+        DUTY_CYC_C = (uint8_t) (value_par/100.0f * DUTY_CYC_C_MAX); //map value to duty cycle 
         LATBbits.LB4 = 0; //turn on led3, for debugging purposes
         return ACK;
     }else{

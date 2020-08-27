@@ -18,6 +18,11 @@
 //wenn peltier ausgesteckt: lüfter strom 120mA
 //eingesteckt 0mA
 //leds lassen sich mit dem mosfet wunderbar dimmen...
+//
+//26.08.20
+//neuer mosfet gleiches problem
+// freq auf 15khz jetzt tut sich was, der fet wird trotzdem sehr heiß
+// auf weniger als 17°C komm ich nicht runter (30° aufwärts am kühlblock)
 
 #pragma config FOSC = INTIO67 //  Internal oscillator block bis 16MHz
 
@@ -63,11 +68,15 @@ extern int8_t set_ct_global; //Set cooling temperature
 /******************************************************************************/
 
 //Peltier Element
-#define PT_MIN_PWM_DC  5   //minimum PWM duty Cycle in %, its to prevent the heat from the hot side to move to the cold side
+#define PT_MIN_PWM_DC  15   //minimum PWM duty Cycle in %, its to prevent the heat from the hot side to move to the cold side
                             // at this value the peltier element cant overheat. Actual value needs to be tested
-#define PT_OH_T        40   //if the Hot side of the peltier element reaches this temperature
+//#define PT_OH_T        40   //if the Hot side of the peltier element reaches this temperature
+
+#define PT_MAX_DT      15   //maximum allowed temperature differnce between hot and cool side of the peltier element.
+                            //if this is reached PT_MIN_PWM_DC will be set. because if dT gets bigger, the heat from the hot side starts
+                            // traveling to the cool side causing the cool side to heat up, causing the pic to increase the pwm more,...
                             // the PWM Duty cycle will be set to PT_MIN_PWM_DC
-#define PT_OFF_T       70   // at this Temperature the Peltier Element will be turned off to Prevent Damaging it.
+#define PT_OFF_T       60   // at this Temperature the Peltier Element will be turned off to Prevent Damaging it.
                             // if its turned off the heat will travel from the hot side to the cool side causing the continer to heat up fast
 
 
@@ -129,14 +138,14 @@ extern int8_t set_ct_global; //Set cooling temperature
 #define DUTY_CYC_C  CCPR1L //set duty cycle for cooling, between 0-PR
 #define DUTY_CYC_P  CCPR5L //set duty cycle for Pump, between 0-PR
 
-#define DUTY_CYC_C_MAX 10 //Max duty Cycle for cooling, actual value that is Written into the CCPRxL Register,
+#define DUTY_CYC_C_MAX 100 //Max duty Cycle for cooling, actual value that is Written into the CCPRxL Register,
                           //it needs to be smaller than the Value written in PR_C
 
 
 //Value to write in PRx register to set frequency, depending on prescaler
 #define PR_P 199 //5kHz
 #define PR_H PR_P //5kHz, Heating and Pump use the same timer => same frequency, but different duty cycles possible
-#define PR_C 40 //255 15.6kHz ,40 97,5kHz
+#define PR_C 255 //255 15.6kHz ,40 97,5kHz
 
 /******************************************************************************/
 //Timer: 
