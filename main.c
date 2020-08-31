@@ -21,6 +21,43 @@ uint8_t adrSensor1[8] = {0x28,0x7C,0xBF,0x79,0x97,0x7,0x3,0x3E}; //0 rings, cool
 uint8_t adrSensor2[8] = {0x28,0x7F,0x96,0x79,0x97,0x7,0x3,0x6C}; //1 ring, cooling
 uint8_t adrSensor3[8] = {0x28,0x9A,0xB1,0x79,0x97,0x7,0x3,0x7};  //2 rings, heating
 
+ struct flags_s{
+                                    
+        uint8_t flag0: 1;           
+        
+        uint8_t flag1: 1;           
+        
+        uint8_t flag2: 1;           
+        
+        uint8_t flag3: 1;
+        
+        uint8_t flag4: 1;
+        
+        uint8_t flag5: 1;
+        
+        uint8_t flags6_7: 2;           //free bits, bit4 - bit7
+    }flags_pt_s; 
+  
+    //PT element calibration
+    //flags only used in main
+    
+    //rename feld data of flags_pt_main_s for Pt elements
+    //do not move to global. Its easier to understand if the defines stay here
+    
+#define ptcT_amb_f  flags_pt_s.flag0   // flag is set at reset or if the measured,
+                                            // temperature of the cool side is bigger 
+                                            // than the room temperature defined in global_config.h 
+
+#define pt_n_av_f   flags_pt_s.flag1   // flag is set if number of temperature measurements 
+                                            // for calculating a average temperature is reached.
+                                            // calculate average, reset flag, reset number
+
+#define pt_ovh_f    flags_pt_s.flag3   // flag is set if overheat temperature is reached
+    
+#define pt_cali_f   flags_pt_s.flag4   //flag is set after calibration is finished. 
+    
+#define  pt_cali_wait_f flags_pt_s.flag5 //cali wait finished
+
 /******************************************************************************/
 //Shared Variables:
 //set_ht_global     set Heating Temperature. 
@@ -51,6 +88,59 @@ _init_();
       
     uint8_t serRec = NACK; 
     
+    
+   
+
+uint8_t c_res = NACK;
+    
+    ptcT_amb_f = 0; //start value
+    pt_n_av_f = 0; //start with wait
+    pt_ovh_f = 0; //overheat flag 0, not overheated
+    pt_cali_wait_f = 0; //this flag is set to 1 if the cali wait phase is on
+    
+//feld für pwmval Kalibration
+    /*
+    struct pwmvalCali_s{
+                                    
+        uint8_t dc: 7;           
+        
+        uint8_t flag: 1;
+    }pwmval_c_top, pwmval_c_bottom, pwmval_c_max; 
+    */
+    uint16_t n_T_meas = 0;          //number of temperature measurements
+    //pwmval_c_max.dc = (uint8_t) ((uint16_t) (DUTY_CYC_C_MAX * 100)/PR_C) ;      //maximum duty cycle in % for the PT element, always <= 100
+    //pwmval_c_max.dc stays constant, could be replaced by a makro
+    //#define PWMVAL_C_MAX_DC (DUTY_CYC_C_MAX * 100)/PR_C //absolute max duty cycle, moved to global config
+    pwmval_c_top.dc = PWMVAL_C_MAX_DC; //start value
+    pwmval_c_bottom.dc = 0;
+    pwmval_c_max.dc = PWMVAL_C_MAX_DC;//max duty cycle calculated by calibration
+    
+    
+    
+    //flags
+    pwmval_c_top.flag = 1; // Kalibration starts with top. at the beginning of 
+                           // the Calibration top.flag != bottom.flag
+    pwmval_c_bottom.flag = 0;
+    
+    pwmval_c_max.flag = 0; //is set after max is set in Kalibration, reset after 1 wait period
+  
+    
+    int16_t t_sum_0 = 0;
+    //int16_t t_sum_1 = 0;
+    int8_t t_av = 127; //average temperatures
+    int8_t  t_av_0 = 127; 
+    int8_t  t_av_1 = 127;
+    float  t_k = 0; //faktor that is added to the room temperature in calibration
+    //to give the PT enough time to cool down after kalibration
+    uint8_t t_av_n = 0; //average counter
+    
+    uint16_t pt_cali_wait_start = 0; //start value of waiting time, while calibration is not possible
+    
+// a struct could be used to group the pwmvals and average temperatures together
+// but i already did it this way so no.
+
+
+    
 //for testing the wdt:
 //toggle LED4 and write/read the value to/from EEPR adress 1
     uint8_t led_val = EEPROM_read(1);
@@ -67,13 +157,17 @@ _init_();
     //the LED will toggle every 4sek
     
 
-    
+    uint16_t loop_counter = 0;
     while(42){
         ClrWdt(); //feed watchdog, time: 4s (presc: 10).                        //added 17.08.20
         //if the timewindow for sth. is to big that might cause the PIC to restart
         //because the wdt is on.
         //so check if the executing time is still much smaller than the wdt period
-        
+       
+        loop_counter++;
+        if(loop_counter >= 65500){
+            loop_counter = 0;
+        }
         
         LATBbits.LB2 ^= 1; //LED 1 toggle every loop to see if PIC is running   LED1
         
@@ -118,9 +212,9 @@ _init_();
             while(!(CCP2_F)){ //10ms time window
 
                 //serRec = SerialRec(); 
-                //serRec updates at the end of the loop, so that the possible iwt resp can be computed
+                //serRec updates at the end of the loop, so that the possib-le iwt resp can be computed
                 uint8_t value = 0;
-                if(serRec == CPS || serRec == CSS || serRec == CHT || serRec == CCT){
+                 if(serRec == CPS || serRec == CSS || serRec == CHT || serRec == CCT){
                     //value that follows a change command, input: timewindow
                     value = readValue(20000);                                  
                     if(value == NACK){          //if no value read in Time Window it returns NACK
@@ -169,6 +263,8 @@ _init_();
                     }
                     
                     
+                }else if(serRec == S_PT_PWM){ //for debugging. send pt pwm
+                    SerialSend(pwmval_c);
                 }
                 
                 serRec = SerialRec(); //update Serial Receive
@@ -201,15 +297,180 @@ _init_();
         }
         
         
+        
         /**********************************************************************/
         //Temperatur Control each Time a new temperature is (or should be) measured
         /**********************************************************************/
         //Calculate Duty Cycle Percentage
         
-        int8_t measHeatingTemp = T3; //2 rings 
+        //int8_t measHeatingTemp = T3; //2 rings
+        int8_t measRoomTemp = T3; //2 rings
         int8_t measPtCoolTemp  = T2; //1 rings
-        int8_t measPtHotTemp   = T1; //0 rings
+        int8_t measPtHotTemp   = T1; //0 rings always > 0
+        
+        /**********************************************************************/
+        // PT Calibration
+        /**********************************************************************/
+        //measRoomTemp
+        /*
+        //last Kalibration finished and no cali wait running
+        if(pt_cali_f == 1 && pt_cali_wait_f == 0){
+            pt_cali_wait_start = loop_counter;
+            pt_cali_wait_f = 1; //cali wait running
+        }
+        
+        if(loop_counter - pt_cali_wait_start >= PT_CALI_W && pt_cali_f == 1){
+            pt_cali_f = 0; //calibration can be started again
+            pt_cali_wait_f = 0; //cali wait finished
+        }
+        
+        
+        //t_k =  T_K_Faktor * t_k;
+        
+        uint8_t t_k_i = (uint8_t) t_k;
+        if(t_k + 0.5 >= t_k_i + 1) t_k_i += 1; //aufrunden
+        
+        //if pt cool temperature is to warm and a new calibration can be started
+        if(measPtCoolTemp >= measRoomTemp + t_k_i - PT_T_CALI && pt_cali_f == 0) ptcT_amb_f = 1; //set cooling Temperature >= ambient Temperature flag
+                                                    //reset after kalibration
+    
+            //Calibration
+        if(ptcT_amb_f == 1){
+        
+            n_T_meas++; //increase measurement counter 
+            //reset maximum
+            pwmval_c_max.dc = PWMVAL_C_MAX_DC;
+            //if the pic doesnt wait its calculating average -> wait != average
+        
+    
+        
+            if(n_T_meas <= PT_N_AV && pt_n_av_f == 1){
+            t_sum_0 += measPtCoolTemp;
+            }else if(pt_n_av_f == 1){
+                n_T_meas = 0; //reset measurement counter
+                pt_n_av_f = 0; //reset average calc flag
+            
+                t_av = t_sum_0/PT_N_AV;  
+               
+                t_av_n++; //inrement average counter
+            
+                t_sum_0 = 0; //reset sum
                 
+                
+                
+          }
+        
+            
+         switch (t_av_n){
+               case 1: {
+                   t_av_0 = t_av; 
+                   break;
+               }
+               case 2: {
+                   t_av_1 = t_av;
+                   t_av_n = 0; //reset counter
+                
+                   //check temperatures
+                   //if bottom search should be first, this also needs to
+                   //be changed accordingly
+                   if(t_av_1 < t_av_0){
+                       if(pwmval_c_top.flag == 1){
+                           pwmval_c_top.flag = 0;
+                           pwmval_c_bottom.flag = 1; //init bottom pwm search
+                       }else if(pwmval_c_bottom.flag == 1){
+                           pwmval_c_bottom.flag = 0;
+                       }
+                   }
+   
+                   //after checking the temperatures: increment or decrement the duty cycle
+                   
+                   //decrement and set
+                   if(pwmval_c_top.flag == 1 && pwmval_c_top.dc > 0){
+                    pwmval_c_top.dc -= PT_DC_STEP_TOP;
+                    //c_res = SetCoolingPWM(pwmval_c_top.dc);
+                    pwmval_c = pwmval_c_top.dc;
+                   //increment and set
+                   }else if(pwmval_c_bottom.flag == 1 && pwmval_c_bottom.dc < PWMVAL_C_MAX_DC){
+                    pwmval_c_bottom.dc += PT_DC_STEP_BOTTOM;    
+                     //c_res = SetCoolingPWM(pwmval_c_bottom.dc);
+                    pwmval_c = pwmval_c_bottom.dc;
+                   }    
+                 break;  
+                } //case 2, second average calculated
+                default: t_av_n = 0;
+            }
+       
+        //waiting PT_N_W measurements
+         if(n_T_meas >= PT_N_W && pt_n_av_f == 0){
+              n_T_meas = 0; //reset counter, waiting time is over
+              pt_n_av_f = 1; //set average calculation flag
+              
+              //if everything is finished and new max pwm is set 
+              if(pwmval_c_bottom.flag == 0 && pwmval_c_top.flag == 0 && pwmval_c_max.flag == 1 ){
+               
+                  //pwmval_c_max.flag = 0; //reset flag  not nezessary because of t_k
+                  
+              }
+              
+              
+          }
+        
+         //Bottom, Top search finished?
+         if(ptcT_amb_f == 1 && pwmval_c_bottom.flag == 0 && pwmval_c_top.flag == 0 ){
+             //calculate new max pwm 
+             pwmval_c_max.dc = (uint8_t) ((uint16_t) (pwmval_c_bottom.dc + pwmval_c_top.dc) / 2);
+            
+             //set pwmval
+             pwmval_c = pwmval_c_max.dc;
+             //pwmval_c_max.flag = 1; 
+          
+         
+          
+             //if everything is finished and pwm set, and 1 wait period passed,
+      //reset everything
+             
+             //if(pwmval_c_max.flag == 0){
+            //reset everything to starting values
+                 
+                ptcT_amb_f = 0; //start value
+                pt_n_av_f = 0; //start with wait
+                n_T_meas = 0;   
+                pwmval_c_top.dc = PWMVAL_C_MAX_DC; //start value
+                pwmval_c_bottom.dc = 0;
+                
+    
+//flags
+                pwmval_c_top.flag = 1; // Kalibration starts with top. at the beginning of 
+                           // the Calibration top.flag != bottom.flag
+                pwmval_c_bottom.flag = 0;
+    
+               // pwmval_c_max.flag = 0; //is set after max is set in Kalibration, reset after 1 wait period
+  
+    
+                t_sum_0 = 0;
+  
+                
+                t_av_n = 0; //average counter      
+                
+                pt_cali_f = 1; //calibration finished, new calibration canot be started after flag is set to 0
+                
+                if(t_av_1 >= measRoomTemp){
+                t_k = (float) t_av_1 - measRoomTemp;
+                }
+        // } //if(pwmval_c_max.flag == 0) inside of 
+           //if(ptcT_amb_f == 1 && pwmval_c_bottom.flag == 0 && pwmval_c_top.flag == 0 )
+        
+    
+            
+        } //if(ptcT_amb_f == 1 && pwmval_c_bottom.flag == 0 && pwmval_c_top.flag == 0 ) 
+         
+        } //if(ptcT_amb_f == 1)
+         
+       
+         */
+         
+    /**************************************************************************/
+        
         
         //heating
         if(-30 < T3 && T3 < 120){
@@ -227,12 +488,17 @@ _init_();
         //measPtCoolTemp = -10; //for testing purposes
         if((-20 < measPtCoolTemp && measPtCoolTemp < 100) && (-20 < measPtHotTemp && measPtHotTemp < 100) ){ //check if Temperatures are in valid range
             if(measPtHotTemp >= PT_OFF_T){ //turn off Temperature
-                pwmval_c = 1;  //1% duty cycle (minimum value in protokoll)
+                //pwmval_c = 1;  //1% duty cycle (minimum value in protokoll)
+                pt_ovh_f = 1; //set overheat flag
                 
-            }else if(measPtHotTemp >= PT_OH_T){
+            }else if(measPtHotTemp <= PT_OFF_T - 20 || measPtHotTemp <= measRoomTemp + 10){
+                pt_ovh_f = 0; //reset overheat flag 
+            }
+            
+            else if(measPtHotTemp - measPtCoolTemp >= PT_MAX_DT){
                 pwmval_c = PT_MIN_PWM_DC; //minimum duty cycle of Pt element so that the cool side doest get to hot but the hot side doesnt over heat
                
-            }else{ //measHotTemp < overHeat
+            }else if(ptcT_amb_f == 0){ //measHotTemp < overHeat, calibration not running
                 pwmval_c = CoolingTempControl(set_ct_global, measPtCoolTemp, 10);
      
             }
@@ -250,9 +516,14 @@ _init_();
      }
 #endif
     
+    /************************************************************************/
+    //Setting pwm Values
     uint8_t h_res = SetHeatingPWM(pwmval_h);  
-       
-    uint8_t c_res = SetCoolingPWM(pwmval_c);
+    
+    if(pwmval_c > pwmval_c_max.dc) {pwmval_c = pwmval_c_max.dc;}
+    if(pwmval_c == 0) {pwmval_c = 1;} //0 not in protokoll
+    if(pt_ovh_f == 1) {pwmval_c = 1;}
+    c_res = SetCoolingPWM(pwmval_c);
     
     
         /*Over heat control of peltier element*/
@@ -318,7 +589,7 @@ void _init_(void){
     Setup_Pump_PWM();
     Setup_Heating_PWM();
     Setup_Cooling_PWM();
-    DUTY_CYC_C = 6; //34; //85% DC
+    DUTY_CYC_C = 0; //34; //85% DC
     //Sensor
     ANSELCbits.ANSC5 = 0;
     

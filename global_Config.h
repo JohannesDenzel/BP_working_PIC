@@ -18,6 +18,11 @@
 //wenn peltier ausgesteckt: lüfter strom 120mA
 //eingesteckt 0mA
 //leds lassen sich mit dem mosfet wunderbar dimmen...
+//
+//26.08.20
+//neuer mosfet gleiches problem
+// freq auf 15khz jetzt tut sich was, der fet wird trotzdem sehr heiß
+// auf weniger als 17°C komm ich nicht runter (30° aufwärts am kühlblock)
 
 #pragma config FOSC = INTIO67 //  Internal oscillator block bis 16MHz
 
@@ -42,7 +47,7 @@
 #define _XTAL_FREQ 16000000 //16MHz
 #endif
 
-#define SAFETY_ON  0 //set to 1 if safety measures should be on
+#define SAFETY_ON  1 //set to 1 if safety measures should be on
 //Safety Measures: turn everything off if there is no Response from the RPI
 /*
             DUTY_CYC_H = 0;     //turn off heating
@@ -56,6 +61,7 @@
 extern int8_t set_ht_global; //Set heating Temperature
 extern int8_t set_ct_global; //Set cooling temperature
 
+
 /******************************************************************************/
 
 /******************************************************************************/
@@ -63,13 +69,16 @@ extern int8_t set_ct_global; //Set cooling temperature
 /******************************************************************************/
 
 //Peltier Element
-#define PT_MIN_PWM_DC  5   //minimum PWM duty Cycle in %, its to prevent the heat from the hot side to move to the cold side
+#define PT_MIN_PWM_DC  15   //minimum PWM duty Cycle in %, its to prevent the heat from the hot side to move to the cold side
                             // at this value the peltier element cant overheat. Actual value needs to be tested
-#define PT_OH_T        40   //if the Hot side of the peltier element reaches this temperature
-                            // the PWM Duty cycle will be set to PT_MIN_PWM_DC
-#define PT_OFF_T       70   // at this Temperature the Peltier Element will be turned off to Prevent Damaging it.
-                            // if its turned off the heat will travel from the hot side to the cool side causing the continer to heat up fast
+//#define PT_OH_T        40   //if the Hot side of the peltier element reaches this temperature
 
+#define PT_MAX_DT      30   //maximum allowed temperature differnce between hot and cool side of the peltier element.
+                            //if this is reached PT_MIN_PWM_DC will be set. because if dT gets bigger, the heat from the hot side starts
+                            // traveling to the cool side causing the cool side to heat up, causing the pic to increase the pwm more,...
+                            // the PWM Duty cycle will be set to PT_MIN_PWM_DC
+#define PT_OFF_T       50   // at this Temperature the Peltier Element will be turned off to Prevent Damaging it.
+                            // if its turned off the heat will travel from the hot side to the cool side causing the continer to heat up fast
 
 
 
@@ -109,6 +118,8 @@ extern int8_t set_ct_global; //Set cooling temperature
 #define CCT         105 //RPI: C1hange Cooling Temperature
 #define CSS         106 //RPI: Change System State ON: values can be changed, OFF: values cant be changed
 
+#define S_PT_PWM    107 //send pt pwm used only for debugging. if received the pic will send the pwmval_c
+
 #define IWT         201 //PIC: I wanna talk
 #define IDWT        202 //PIC: I dont wanna talk
 #define IWR         203 //RPI: I wanna read (the whole System State)
@@ -129,14 +140,47 @@ extern int8_t set_ct_global; //Set cooling temperature
 #define DUTY_CYC_C  CCPR1L //set duty cycle for cooling, between 0-PR
 #define DUTY_CYC_P  CCPR5L //set duty cycle for Pump, between 0-PR
 
-#define DUTY_CYC_C_MAX 10 //Max duty Cycle for cooling, actual value that is Written into the CCPRxL Register,
+#define DUTY_CYC_C_MAX 204 //Max duty Cycle for cooling, actual value that is Written into the CCPRxL Register,
                           //it needs to be smaller than the Value written in PR_C
 
 
 //Value to write in PRx register to set frequency, depending on prescaler
 #define PR_P 199 //5kHz
 #define PR_H PR_P //5kHz, Heating and Pump use the same timer => same frequency, but different duty cycles possible
-#define PR_C 40 //255 15.6kHz ,40 97,5kHz
+#define PR_C 255 //255 15.6kHz ,40 97,5kHz
+
+/******************************************************************************/
+//PT automatic calibration
+/******************************************************************************/
+#define PWMVAL_C_MAX_DC 80// multiples of stepsize (DUTY_CYC_C_MAX * 100)/PR_C //check if its actually desired value, might depend on precompiler
+ 
+//#define AMB_T       20   // room temperature doesnt need to be exact, maybe use measured val later, room temperature is measured
+
+#define PT_T_CALI 2  //if the cool temperature is bigger than room temprature - PT_T_CALI the calibration will be triggered
+
+#define PT_N_AV        1    // number of temperature measurements used to calculate a average Temperature, max 256
+
+#define PT_N_W         5    // number of temperature mesurements the PIC waits until starting to measure the 
+                            // temperatures for the next average value, max 256
+
+#define PT_DC_STEP_TOP 10   // duty cycle step size in % for decreasing (coming from the top) the dutycycle for calibration
+                            // example max duty cycle 50%, step_top 10%, steps 50,40,30,20,10,0% until the next average temperature 
+                            // is significantly smaller than the last.
+#define PT_DC_STEP_BOTTOM 10 // duty cycle step size in % for increasing (coming from the bottom) the dutycycle for calibration
+
+#define T_K_Faktor      0.99 //kalibration is startet if t_room + t_k <= temperature of the cool side
+                            // t_k = T_K_Faktor * t_k
+
+#define PT_CALI_W      50 //wait PT_CALI_W loops until calibration can be started again
+
+struct pwmvalCali_s{
+                                    
+        uint8_t dc: 7;           
+        
+        uint8_t flag: 1;
+    }pwmval_c_top, pwmval_c_bottom, pwmval_c_max; 
+    
+
 
 /******************************************************************************/
 //Timer: 
