@@ -373,9 +373,11 @@ uint8_t CoolingTempControl(int8_t Ts, int8_t Tm, uint8_t dTmax){
     }
     
     if(dT_intern >= dTmax){
-        pwm_intern = DUTY_CYC_C_MAX; //full power 01.07.20 22:30
+        //pwm_intern = PWMVAL_C_MAX_DC; //full power fixed 29.08.20
+        pwm_intern = pwmval_c_max.dc;
     }else{ //dT < max
-        pwm_intern = (uint8_t) ((uint16_t )(DUTY_CYC_C_MAX * dT_intern)/dTmax); // 01.07.20 22:30 DUTY_CYC_C_MAX instead of 40
+        //pwm_intern = (uint8_t) ((uint16_t )(PWMVAL_C_MAX_DC * dT_intern)/dTmax); // 
+        pwm_intern = (uint8_t) ((uint16_t )(pwmval_c_max.dc * dT_intern)/dTmax);
     }
     
     return pwm_intern;
