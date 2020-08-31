@@ -84,7 +84,7 @@ void loop() { //Choose Serial1 or Serial2 as required
     pinstate = !pinstate;
     digitalWrite(ledpin, pinstate);
     
-    //Serial.println("PIC: " + String((uint8_t) rec - 20) + " " + String(rec)); //actual values, ack=e in production
+
     //only print pwmval
     float zeit = millis()/1000; //seconds since starting
     rec = (uint8_t) rec;
@@ -105,15 +105,7 @@ void loop() { //Choose Serial1 or Serial2 as required
       Serial.println(String((float) zeit) + "  " + String(t_c_h)+ " " + String(t_c_c)+ " " + String(t_r)+ " " + String(pwmval_c));
     }
     
-    //if(rec <= 100 && rec > 0){
-      
-     // Serial.println(String((float) zeit) + "  " + String((uint8_t) rec)+ " "); //pwmval
-      //uint8_t t1 = temp_buf[0] - 20;
-      //uint8_t t2 = temp_buf[1] - 20;
-      //uint8_t t3 = temp_buf[2] - 20;
-      //Serial.println(String(t1) + " " + String(t2) + " " + String(t3)  );
-      
-    //}
+
     
     if (rec == IWT || rec == IDWT){
       char lastrec = rec; //IWT or IDWT
@@ -122,11 +114,10 @@ void loop() { //Choose Serial1 or Serial2 as required
       //Serial.println("ESP ACK: " + String(ACK));
 
       if(rec == IWT || iwrF == 0){
-      //delay(5);
-      //Serial2.flush();
+
       delay(5);
       Serial2.write(IWR);
-      //Serial2.readBytes(temp_buf, 3);
+
       delay(5);
       //Serial.println("ESP IWR: " + String(IWR));
       iwrF = 1; //next 3 rec are temperaures
@@ -135,11 +126,8 @@ void loop() { //Choose Serial1 or Serial2 as required
       Serial2.write(S_PT_PWM); //request pt pwm
       delay(10);
       Serial2.write(CCT);
-      Serial2.write(30); //pic sends 101
-      //Serial.println("ESP CCT: 10°C");
-      //Serial2.write(userdata);
-      //Serial2.write(IWR);
-      //Serial.println("ESP: " + String(IWR));
+      Serial2.write(30); //pic sends 101, means 10°C
+
       delay(1); //wait 1ms 
     }
     
