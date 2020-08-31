@@ -35,7 +35,7 @@ uint8_t adrSensor3[8] = {0x28,0x9A,0xB1,0x79,0x97,0x7,0x3,0x7};  //2 rings, heat
         
         uint8_t flag5: 1;
         
-        uint8_t flags6_7: 2;           //free bits, bit4 - bit7
+        uint8_t flags6_7: 2;           //free bits, bit6 - bit7
     }flags_pt_s; 
   
     //PT element calibration
@@ -98,19 +98,9 @@ uint8_t c_res = NACK;
     pt_ovh_f = 0; //overheat flag 0, not overheated
     pt_cali_wait_f = 0; //this flag is set to 1 if the cali wait phase is on
     
-//feld für pwmval Kalibration
-    /*
-    struct pwmvalCali_s{
-                                    
-        uint8_t dc: 7;           
-        
-        uint8_t flag: 1;
-    }pwmval_c_top, pwmval_c_bottom, pwmval_c_max; 
-    */
+
     uint16_t n_T_meas = 0;          //number of temperature measurements
-    //pwmval_c_max.dc = (uint8_t) ((uint16_t) (DUTY_CYC_C_MAX * 100)/PR_C) ;      //maximum duty cycle in % for the PT element, always <= 100
-    //pwmval_c_max.dc stays constant, could be replaced by a makro
-    //#define PWMVAL_C_MAX_DC (DUTY_CYC_C_MAX * 100)/PR_C //absolute max duty cycle, moved to global config
+    
     pwmval_c_top.dc = PWMVAL_C_MAX_DC; //start value
     pwmval_c_bottom.dc = 0;
     pwmval_c_max.dc = PWMVAL_C_MAX_DC;//max duty cycle calculated by calibration
@@ -136,8 +126,7 @@ uint8_t c_res = NACK;
     
     uint16_t pt_cali_wait_start = 0; //start value of waiting time, while calibration is not possible
     
-// a struct could be used to group the pwmvals and average temperatures together
-// but i already did it this way so no.
+
 
 
     
@@ -179,7 +168,7 @@ uint8_t c_res = NACK;
             ow_wr_byte(Skip_ROM);  //speak to all Sensors
             ow_wr_byte(Convert_T); //Start Temperature Conversion    
         }
-        //do sth else for at least 750ms
+      
         
         __delay_ms(1); 
         SER_EN = 1; //enable Serial
@@ -311,7 +300,7 @@ uint8_t c_res = NACK;
         /**********************************************************************/
         // PT Calibration
         /**********************************************************************/
-        //measRoomTemp
+   
         /*
         //last Kalibration finished and no cali wait running
         if(pt_cali_f == 1 && pt_cali_wait_f == 0){
@@ -340,7 +329,7 @@ uint8_t c_res = NACK;
             n_T_meas++; //increase measurement counter 
             //reset maximum
             pwmval_c_max.dc = PWMVAL_C_MAX_DC;
-            //if the pic doesnt wait its calculating average -> wait != average
+            //if the pic doesnt wait, its calculating average -> wait != average
         
     
         
@@ -387,12 +376,12 @@ uint8_t c_res = NACK;
                    //decrement and set
                    if(pwmval_c_top.flag == 1 && pwmval_c_top.dc > 0){
                     pwmval_c_top.dc -= PT_DC_STEP_TOP;
-                    //c_res = SetCoolingPWM(pwmval_c_top.dc);
+                    
                     pwmval_c = pwmval_c_top.dc;
                    //increment and set
                    }else if(pwmval_c_bottom.flag == 1 && pwmval_c_bottom.dc < PWMVAL_C_MAX_DC){
                     pwmval_c_bottom.dc += PT_DC_STEP_BOTTOM;    
-                     //c_res = SetCoolingPWM(pwmval_c_bottom.dc);
+                     
                     pwmval_c = pwmval_c_bottom.dc;
                    }    
                  break;  
@@ -408,7 +397,7 @@ uint8_t c_res = NACK;
               //if everything is finished and new max pwm is set 
               if(pwmval_c_bottom.flag == 0 && pwmval_c_top.flag == 0 && pwmval_c_max.flag == 1 ){
                
-                  //pwmval_c_max.flag = 0; //reset flag  not nezessary because of t_k
+                  
                   
               }
               
@@ -452,7 +441,7 @@ uint8_t c_res = NACK;
                 
                 t_av_n = 0; //average counter      
                 
-                pt_cali_f = 1; //calibration finished, new calibration canot be started after flag is set to 0
+                pt_cali_f = 1; //calibration finished, new calibration cannot be started after flag is set to 0
                 
                 if(t_av_1 >= measRoomTemp){
                 t_k = (float) t_av_1 - measRoomTemp;
@@ -488,7 +477,7 @@ uint8_t c_res = NACK;
         //measPtCoolTemp = -10; //for testing purposes
         if((-20 < measPtCoolTemp && measPtCoolTemp < 100) && (-20 < measPtHotTemp && measPtHotTemp < 100) ){ //check if Temperatures are in valid range
             if(measPtHotTemp >= PT_OFF_T){ //turn off Temperature
-                //pwmval_c = 1;  //1% duty cycle (minimum value in protokoll)
+               
                 pt_ovh_f = 1; //set overheat flag
                 
             }else if(measPtHotTemp <= PT_OFF_T - 20 || measPtHotTemp <= measRoomTemp + 10){
@@ -503,7 +492,7 @@ uint8_t c_res = NACK;
      
             }
         }else{
-           pwmval_c = PT_MIN_PWM_DC;  //currently this value is not used because hardware not working.
+           pwmval_c = PT_MIN_PWM_DC;  
           
         }
         
@@ -526,25 +515,7 @@ uint8_t c_res = NACK;
     c_res = SetCoolingPWM(pwmval_c);
     
     
-        /*Over heat control of peltier element*/
-        /*
-        if(T1 > 40){
-            maxTempReached = 1;
-        }
-        if(T1 < 35){
-            maxTempReached = 0;
-        }
-        
-        if(maxTempReached){
-            pwmval_c = 0;
-        }
-        */
-         
-        
-        //uint8_t c_res = SetCoolingPWM(pwmval_c);
-        
-        //__delay_ms(1000); // IDWT time window, for debugging
-        
+      
    
     //while(13); //testing wdt
     
