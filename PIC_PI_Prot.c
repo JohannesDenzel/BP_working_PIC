@@ -377,7 +377,8 @@ uint8_t CoolingTempControl(int8_t Ts, int8_t Tm, uint8_t dTmax){
         pwm_intern = pwmval_c_max.dc;
     }else{ //dT < max
         //pwm_intern = (uint8_t) ((uint16_t )(PWMVAL_C_MAX_DC * dT_intern)/dTmax); // 
-        pwm_intern = (uint8_t) ((uint16_t )(pwmval_c_max.dc * dT_intern)/dTmax);
+        pwm_intern = (uint8_t) ((uint16_t )(pwmval_c_max.dc * dT_intern)/dTmax) + PT_MIN_PWM_DC;
+        if(pwm_intern > pwmval_c_max.dc) {pwm_intern = pwmval_c_max.dc;}
     }
     
     return pwm_intern;

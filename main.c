@@ -292,8 +292,8 @@ uint8_t c_res = NACK;
         /**********************************************************************/
         //Calculate Duty Cycle Percentage
         
-        //int8_t measHeatingTemp = T3; //2 rings
-        int8_t measRoomTemp = T3; //2 rings
+        int8_t measHeatingTemp = T3; //2 rings
+        //int8_t measRoomTemp = T3; //2 rings
         int8_t measPtCoolTemp  = T2; //1 rings
         int8_t measPtHotTemp   = T1; //0 rings always > 0
         
@@ -473,23 +473,27 @@ uint8_t c_res = NACK;
         //uint8_t h_res = SetHeatingPWM(pwmval_h); //heating result ACK or NACK, moved down: 17.08.20
         
      
-        /*Over heat control of peltier element*/
+        /*Over heat control of peltier element, checks hot and cool temperature*/
         //measPtCoolTemp = -10; //for testing purposes
         if((-20 < measPtCoolTemp && measPtCoolTemp < 100) && (-20 < measPtHotTemp && measPtHotTemp < 100) ){ //check if Temperatures are in valid range
-            if(measPtHotTemp >= PT_OFF_T){ //turn off Temperature
-               
+            if(measPtHotTemp >= PT_OFF_T || measPtCoolTemp >= PT_OFF_T){ //turn off Temperature
+            //if(measPtCoolTemp >= PT_OFF_T){   
                 pt_ovh_f = 1; //set overheat flag
                 
-            }else if(measPtHotTemp <= PT_OFF_T - 20 || measPtHotTemp <= measRoomTemp + 10){
+            
+            }else if(measPtHotTemp <= PT_OFF_T - 20){
+            // }else if( measPtCoolTemp <= PT_OFF_T - 10){
                 pt_ovh_f = 0; //reset overheat flag 
             }
             
-            if(measPtHotTemp - measPtCoolTemp >= PT_MAX_DT){
-                pwmval_c = PT_MIN_PWM_DC; //minimum duty cycle of Pt element so that the cool side doest get to hot but the hot side doesnt over heat
+            //if(measPtHotTemp - measPtCoolTemp >= PT_MAX_DT){
+              //  pwmval_c = PT_MIN_PWM_DC; //minimum duty cycle of Pt element so that the cool side doest get to hot but the hot side doesnt over heat
                
-            }else if(ptcT_amb_f == 0){ //measHotTemp < overHeat, calibration not running
+            //}
+        //else 
+            if(ptcT_amb_f == 0){ //measHotTemp < overHeat, calibration not running
                 pwmval_c = CoolingTempControl(set_ct_global, measPtCoolTemp, 10);
-     
+                if(pwmval_c < PT_MIN_PWM_DC) {pwmval_c = PT_MIN_PWM_DC;}
             }
         }else{
            pwmval_c = PT_MIN_PWM_DC;  
