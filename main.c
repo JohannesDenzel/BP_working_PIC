@@ -486,12 +486,10 @@ uint8_t c_res = NACK;
                 pt_ovh_f = 0; //reset overheat flag 
             }
             
-            //if(measPtHotTemp - measPtCoolTemp >= PT_MAX_DT){
-              //  pwmval_c = PT_MIN_PWM_DC; //minimum duty cycle of Pt element so that the cool side doest get to hot but the hot side doesnt over heat
+            if(measPtHotTemp - measPtCoolTemp >= PT_MAX_DT){
+                pwmval_c = PT_MIN_PWM_DC; //minimum duty cycle of Pt element so that the cool side doest get to hot but the hot side doesnt over heat
                
-            //}
-        //else 
-            if(ptcT_amb_f == 0){ //measHotTemp < overHeat, calibration not running
+            }else if(ptcT_amb_f == 0){ //measHotTemp < overHeat, calibration not running
                 pwmval_c = CoolingTempControl(set_ct_global, measPtCoolTemp, 10);
                 if(pwmval_c < PT_MIN_PWM_DC) {pwmval_c = PT_MIN_PWM_DC;}
             }

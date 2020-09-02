@@ -126,7 +126,7 @@ void loop() { //Choose Serial1 or Serial2 as required
       Serial2.write(S_PT_PWM); //request pt pwm
       delay(10);
       Serial2.write(CCT);
-      Serial2.write(38); //pic sends 101, means 18°C
+      Serial2.write(10); //pic sends 101, means 18°C
       delay(5);
       Serial2.write(CHT);
       Serial2.write(70);//50°C heating

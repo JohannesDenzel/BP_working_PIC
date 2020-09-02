@@ -69,12 +69,12 @@ extern int8_t set_ct_global; //Set cooling temperature
 /******************************************************************************/
 
 //Peltier Element
-#define PT_MIN_PWM_DC  0   //15 minimum PWM duty Cycle in %, its to prevent the heat from the hot side to move to the cold side
+#define PT_MIN_PWM_DC  15   //15 minimum PWM duty Cycle in %, its to prevent the heat from the hot side to move to the cold side
                             // at this value the peltier element cant overheat. If > 0 the minimum dc is always this value. It can only be 0 if 
                             // the pt element overheats
-//#define PT_OH_T        40   //if the Hot side of the peltier element reaches this temperature
 
-#define PT_MAX_DT      30   //maximum allowed temperature differnce between hot and cool side of the peltier element.
+
+#define PT_MAX_DT      50   //maximum allowed temperature differnce between hot and cool side of the peltier element.
                             //if this is reached PT_MIN_PWM_DC will be set. because if dT gets bigger, the heat from the hot side starts
                             // traveling to the cool side causing the cool side to heat up, causing the pic to increase the pwm more,...
                             // the PWM Duty cycle will be set to PT_MIN_PWM_DC
